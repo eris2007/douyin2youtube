@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>VPS 管理 - 抖音转推控制面板</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<nav class="navbar">
+  <a class="navbar-brand" href="/dashboard">📡 抖音转推面板</a>
+  <div class="navbar-links">
+    <a href="/dashboard">仪表盘</a>
+    <a href="/nodes" class="active">VPS 管理</a>
+    <a href="/tasks">任务管理</a>
+    <a href="/settings">设置</a>
+  </div>
+  <div class="navbar-right">
+    <span>{{ username }}</span>
+    <button class="btn-logout" onclick="doLogout()">退出</button>
+  </div>
+</nav>
+
+<div class="container">
+  <div class="flex items-center" style="justify-content:space-between;margin-bottom:20px">
+    <h2>VPS 节点管理</h2>
+    <button class="btn btn-primary" onclick="showAddModal()">+ 添加 VPS</button>
+  </div>
+
+  <div id="nodes-list">
+    <div class="text-muted" style="padding:40px;text-align:center">加载中...</div>
+  </div>
+</div>
+
+<!-- Add/Edit Modal -->
+<div class="modal-overlay" id="node-modal">
+  <div class="modal">
+    <h2 id="modal-title">添加 VPS 节点</h2>
+    <form onsubmit="event.preventDefault(); saveNode();">
+      <input type="hidden" id="node-id">
+      <div class="form-group"><label>名称</label><input id="node-name" placeholder="如：香港电信VPS" required></div>
+      <div class="form-group"><label>IP / 域名</label><input id="node-host" placeholder="1.2.3.4 或 vps.example.com" required></div>
+      <div class="grid-2">
+        <div class="form-group"><label>SSH 端口</label><input id="node-port" type="number" value="22" required></div>
+        <div class="form-group"><label>SSH 用户名</label><input id="node-ssh-user" value="root" required></div>
+      </div>
+      <div class="form-group"><label>认证方式</label>
+        <select id="node-auth-type" onchange="toggleAuthFields()">
+          <option value="password">密码</option>
+          <option value="key">SSH 私钥</option>
+        </select>
+      </div>
+      <div class="form-group" id="pass-group"><label>SSH 密码</label><input id="node-pass" type="password"></div>
+      <div class="form-group" id="key-group" style="display:none"><label>SSH 私钥</label><textarea id="node-key" placeholder="粘贴私钥内容..."></textarea></div>
+      <div class="form-group"><label>脚本存放路径</label><input id="node-script-path" value="/root/douyin2youtube"></div>
+      <div class="form-group"><label>GitHub 仓库地址</label><input id="node-github-repo" placeholder="https://github.com/yourname/douyin2youtube.git"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" onclick="closeModal()">取消</button>
+        <button type="submit" class="btn btn-primary">保存</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="/static/app.js"></script>
+<script>
+let editingId = null;
+
+function toggleAuthFields() {
+  const type = document.getElementById('node-auth-type').value;
+  document.getElementById('pass-group').style.display = type === 'password' ? '' : 'none';
+  document.getElementById('key-group').style.display = type === 'key' ? '' : 'none';
+}
+
+function showAddModal() {
+  editingId = null;
+  document.getElementById('modal-title').textContent = '添加 VPS 节点';
+  document.getElementById('node-id').value = '';
+  ['name','host','pass','key'].forEach(f => document.getElementById('node-'+f).value = '');
+  document.getElementById('node-port').value = '22';
+  document.getElementById('node-ssh-user').value = 'root';
+  document.getElementById('node-auth-type').value = 'password';
+  document.getElementById('node-script-path').value = '/root/douyin2youtube';
+  document.getElementById('node-github-repo').value = 'https://github.com/yourname/douyin2youtube.git';
+  toggleAuthFields();
+  document.getElementById('node-modal').classList.add('active');
+}
+
+function showEditModal(node) {
+  editingId = node.id;
+  document.getElementById('modal-title').textContent = '编辑 VPS 节点';
+  document.getElementById('node-id').value = node.id;
+  document.getElementById('node-name').value = node.name;
+  document.getElementById('node-host').value = node.host;
+  document.getElementById('node-port').value = node.port;
+  document.getElementById('node-ssh-user').value = node.ssh_username;
+  document.getElementById('node-auth-type').value = node.ssh_auth_type;
+  document.getElementById('node-pass').value = '';
+  document.getElementById('node-key').value = '';
+  document.getElementById('node-script-path').value = node.script_path;
+  document.getElementById('node-github-repo').value = node.github_repo;
+  toggleAuthFields();
+  document.getElementById('node-modal').classList.add('active');
+}
+
+function closeModal() { document.getElementById('node-modal').classList.remove('active'); }
+
+async function saveNode() {
+  const body = {
+    name: document.getElementById('node-name').value,
+    host: document.getElementById('node-host').value,
+    port: parseInt(document.getElementById('node-port').value),
+    ssh_username: document.getElementById('node-ssh-user').value,
+    ssh_auth_type: document.getElementById('node-auth-type').value,
+    ssh_password: document.getElementById('node-pass').value,
+    ssh_key: document.getElementById('node-key').value,
+    script_path: document.getElementById('node-script-path').value,
+    github_repo: document.getElementById('node-github-repo').value,
+  };
+  try {
+    if (editingId) {
+      await API.put(`/api/nodes/${editingId}`, body);
+      toast('节点已更新', 'success');
+    } else {
+      await API.post('/api/nodes', body);
+      toast('节点已添加', 'success');
+    }
+    closeModal();
+    loadNodes();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function deleteNode(id) {
+  if (!confirm('确定要删除这个 VPS 节点吗？')) return;
+  try { await API.del(`/api/nodes/${id}`); toast('已删除', 'success'); loadNodes(); }
+  catch(e) { toast(e.message, 'error'); }
+}
+
+async function testNode(id) {
+  const row = document.querySelector(`tr[data-node-id="${id}"]`);
+  const statusEl = row.querySelector('.status-dot');
+  statusEl.className = 'status-dot gray';
+  try {
+    const res = await API.post(`/api/nodes/${id}/test`);
+    toast(res.ok ? '连接成功: ' + res.message : '连接失败: ' + res.message, res.ok ? 'success' : 'error');
+    statusEl.className = res.ok ? 'status-dot green' : 'status-dot red';
+  } catch(e) { toast(e.message, 'error'); statusEl.className = 'status-dot red'; }
+}
+
+async function deployNode(id) {
+  const row = document.querySelector(`tr[data-node-id="${id}"]`);
+  const deployBtn = row.querySelector('.btn-deploy');
+  deployBtn.disabled = true;
+  deployBtn.innerHTML = '<span class="spinner"></span> 部署中...';
+  try {
+    const res = await API.post(`/api/nodes/${id}/deploy`);
+    toast(res.ok ? '部署成功' : '部署失败: ' + res.message, res.ok ? 'success' : 'error');
+  } catch(e) { toast(e.message, 'error'); }
+  deployBtn.disabled = false;
+  deployBtn.textContent = '部署脚本';
+}
+
+async function loadNodes() {
+  try {
+    const nodes = await API.get('/api/nodes');
+    const el = document.getElementById('nodes-list');
+    if (nodes.length === 0) {
+      el.innerHTML = '<div class="text-muted" style="padding:40px;text-align:center">暂无 VPS 节点，点击上方按钮添加</div>';
+      return;
+    }
+    el.innerHTML = `<div class="table-wrap"><table>
+      <thead><tr><th>名称</th><th>主机</th><th>SSH</th><th>状态</th><th>操作</th></tr></thead>
+      <tbody>${nodes.map(n => `<tr data-node-id="${n.id}">
+        <td><strong>${n.name}</strong></td>
+        <td>${n.host}:${n.port}</td>
+        <td>${n.ssh_username} (${n.ssh_auth_type})</td>
+        <td><span class="status-dot ${n.status === 'online' ? 'green' : n.status === 'offline' ? 'red' : 'gray'}"></span>${n.status}</td>
+        <td><div class="flex gap-2">
+          <button class="btn btn-outline btn-sm" onclick="testNode(${n.id})">测试</button>
+          <button class="btn btn-outline btn-sm btn-deploy" onclick="deployNode(${n.id})">部署</button>
+          <button class="btn btn-outline btn-sm" onclick="showEditModal(${JSON.stringify(n).replace(/"/g, '&quot;')})">编辑</button>
+          <button class="btn btn-outline btn-sm" style="color:var(--red)" onclick="deleteNode(${n.id})">删除</button>
+        </div></td>
+      </tr>`).join('')}</tbody>
+    </table></div>`;
+  } catch(e) { console.error(e); }
+}
+loadNodes();
+</script>
+</body>
+</html>

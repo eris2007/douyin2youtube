@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>设置 - 抖音转推控制面板</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<nav class="navbar">
+  <a class="navbar-brand" href="/dashboard">📡 抖音转推面板</a>
+  <div class="navbar-links">
+    <a href="/dashboard">仪表盘</a>
+    <a href="/nodes">VPS 管理</a>
+    <a href="/tasks">任务管理</a>
+    <a href="/settings" class="active">设置</a>
+  </div>
+  <div class="navbar-right">
+    <span>{{ username }}</span>
+    <button class="btn-logout" onclick="doLogout()">退出</button>
+  </div>
+</nav>
+
+<div class="container" style="max-width:480px">
+  <h2 style="margin-bottom:20px">账号设置</h2>
+
+  <div class="card mb-4">
+    <div class="card-header">账号信息</div>
+    <p class="mb-4">当前登录: <strong>{{ username }}</strong></p>
+  </div>
+
+  <div class="card mb-4">
+    <div class="card-header">系统信息</div>
+    <div class="text-sm text-muted">
+      <p>控制面板版本: 1.0</p>
+      <p>依赖: FastAPI + asyncssh + SQLAlchemy</p>
+      <p>面板端口: 8000</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">关于</div>
+    <div class="text-sm text-muted">
+      <p>抖音 → YouTube 实时转推控制面板</p>
+      <p>可管理多台 VPS 上的转推任务，支持实时日志、多用户、录制管理。</p>
+      <p class="mt-4">部署脚本需提前将 douyin2youtube 脚本上传至 GitHub 仓库，面板通过 SSH 自动下载部署。</p>
+    </div>
+  </div>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

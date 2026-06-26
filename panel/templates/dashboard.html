@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>仪表盘 - 抖音转推控制面板</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<nav class="navbar">
+  <a class="navbar-brand" href="/dashboard">📡 抖音转推面板</a>
+  <div class="navbar-links">
+    <a href="/dashboard" class="active">仪表盘</a>
+    <a href="/nodes">VPS 管理</a>
+    <a href="/tasks">任务管理</a>
+    <a href="/settings">设置</a>
+  </div>
+  <div class="navbar-right">
+    <span>{{ username }}</span>
+    <button class="btn-logout" onclick="doLogout()">退出</button>
+  </div>
+</nav>
+
+<div class="container">
+  <h2 style="margin-bottom:20px">仪表盘</h2>
+
+  <div class="stats-row" id="stats-row">
+    <div class="card stat-blue"><div class="card-header">VPS 节点</div><div class="card-value">-</div></div>
+    <div class="card stat-green"><div class="card-header">在线节点</div><div class="card-value">-</div></div>
+    <div class="card stat-green"><div class="card-header">运行中任务</div><div class="card-value">-</div></div>
+    <div class="card stat-yellow"><div class="card-header">已停止任务</div><div class="card-value">-</div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">最近任务</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>VPS</th><th>抖音链接</th><th>密钥</th><th>状态</th><th>时间</th><th>操作</th></tr></thead>
+        <tbody id="recent-tasks"><tr><td colspan="6" class="text-muted">加载中...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script src="/static/app.js"></script>
+<script>
+async function loadDashboard() {
+  try {
+    const data = await API.get('/api/dashboard');
+    const stats = document.getElementById('stats-row').children;
+    stats[0].querySelector('.card-value').textContent = data.total_nodes;
+    stats[1].querySelector('.card-value').textContent = data.online_nodes;
+    stats[2].querySelector('.card-value').textContent = data.running_tasks;
+    stats[3].querySelector('.card-value').textContent = data.stopped_tasks;
+    const tbody = document.getElementById('recent-tasks');
+    if (data.recent_tasks.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" class="text-muted">暂无任务</td></tr>';
+      return;
+    }
+    tbody.innerHTML = data.recent_tasks.map(t => {
+      const badge = t.status === 'running' ? 'badge-green' : t.status === 'error' ? 'badge-red' : 'badge-gray';
+      return `<tr>
+        <td>${t.vps_name || '#' + t.vps_node_id}</td>
+        <td class="truncate">${t.douyin_url}</td>
+        <td>${t.youtube_key_masked}</td>
+        <td><span class="badge ${badge}">${t.status}</span></td>
+        <td class="text-sm text-muted">${formatTime(t.created_at)}</td>
+        <td><a href="/tasks/${t.id}" class="btn btn-outline btn-sm">详情</a></td>
+      </tr>`;
+    }).join('');
+  } catch(e) { console.error(e); }
+}
+loadDashboard();
+setInterval(loadDashboard, 15000);
+</script>
+</body>
+</html>
