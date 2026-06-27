@@ -46,7 +46,6 @@ stop_by_key() {
     fi
 
     # 3. Fallback: find and kill any restream.sh process for this task
-    #    用 task_id 匹配（最可靠），不用 key（因为 key 可能已变）
     if [ -n "$TASK_ID" ]; then
         for PID in $(pgrep -f "restream\\.sh|start\\.sh" 2>/dev/null); do
             [ "$PID" = "$$" ] && continue
@@ -55,6 +54,11 @@ stop_by_key() {
                 _kill_tree "$PID"
                 KILLED=$((KILLED+1))
             fi
+        done
+        # 额外兜底: 杀所有相关 ffmpeg / tee 进程
+        for PID in $(pgrep -f "restream_task${TASK_ID}" 2>/dev/null); do
+            _kill_tree "$PID"
+            KILLED=$((KILLED+1))
         done
     fi
 
