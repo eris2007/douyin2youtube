@@ -389,30 +389,7 @@ push_url_to_youtube() {
 
     if [ -n "$codec" ] && [ "$codec" != "h264" ]; then
         print_warn "Detected ${codec} stream, transcoding to H.264/AAC for YouTube RTMP..."
-        local transcode_tmp
-        transcode_tmp="$(mktemp /tmp/restream_ffmpeg_transcode.XXXXXX)"
-        set +e
-        run_ffmpeg_transcode_url "$input_url" 2>&1 | tee -a "$log_file" | tee "$transcode_tmp"
-        local transcode_status=${PIPESTATUS[0]}
-        set -e
-        if [ "$transcode_status" -ne 0 ] && grep -Eiq "Connection timed out|Connection refused|No route to host" "$transcode_tmp"; then
-            print_warn "VPS 无法直连抖音 CDN（转码模式），尝试通过代理获取流URL..."
-            local proxy_stream
-            proxy_stream="$(fetch_proxy_stream_url || true)"
-            if [ -n "$proxy_stream" ] && echo "$proxy_stream" | grep -Eq "^https?://"; then
-                print_ok "代理获取到流URL，使用代理中转推流..."
-                local proxy_codec
-                proxy_codec="$(detect_video_codec "$proxy_stream")"
-                if [ -n "$proxy_codec" ] && [ "$proxy_codec" != "h264" ]; then
-                    run_ffmpeg_transcode_url "$proxy_stream" 2>&1 | tee -a "$log_file" || true
-                else
-                    run_ffmpeg_copy_url "$proxy_stream" 2>&1 | tee -a "$log_file" || true
-                fi
-            else
-                print_warn "代理也未获取到可用流URL"
-            fi
-        fi
-        rm -f "$transcode_tmp"
+        run_ffmpeg_transcode_url "$input_url" 2>&1 | tee -a "$log_file" || true
         return 0
     fi
 
@@ -423,27 +400,6 @@ push_url_to_youtube() {
     run_ffmpeg_copy_url "$input_url" 2>&1 | tee -a "$log_file" | tee "$tmp_log"
     copy_status=${PIPESTATUS[0]}
     set -e
-
-    # CDN 连接超时 → 尝试通过控制面板代理获取流URL
-    if [ "$copy_status" -ne 0 ] && grep -Eiq "Connection timed out|Connection refused|No route to host" "$tmp_log"; then
-        print_warn "VPS 无法直连抖音 CDN，尝试通过控制面板代理获取流URL..."
-        local proxy_stream
-        proxy_stream="$(fetch_proxy_stream_url || true)"
-        if [ -n "$proxy_stream" ] && echo "$proxy_stream" | grep -Eq "^https?://"; then
-            print_ok "代理获取到流URL，使用代理中转推流..."
-            local proxy_codec
-            proxy_codec="$(detect_video_codec "$proxy_stream")"
-            if [ -n "$proxy_codec" ] && [ "$proxy_codec" != "h264" ]; then
-                run_ffmpeg_transcode_url "$proxy_stream" 2>&1 | tee -a "$log_file" || true
-            else
-                run_ffmpeg_copy_url "$proxy_stream" 2>&1 | tee -a "$log_file" || true
-            fi
-        else
-            print_warn "代理也未获取到可用流URL，保持当前状态等待重试"
-        fi
-        rm -f "$tmp_log"
-        return 0
-    fi
 
     if [ "$copy_status" -ne 0 ] && grep -Eiq "Video codec .*not implemented|dimensions not set|Could not write header|Could not find codec parameters|Invalid argument" "$tmp_log"; then
         print_warn "Copy mode failed on stream metadata, retrying with H.264/AAC transcode..."
